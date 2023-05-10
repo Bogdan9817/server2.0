@@ -9,6 +9,7 @@ import { Server, Socket } from 'socket.io';
 import { GameService } from './game.service';
 import { CreateRoomArgs, RoomService } from './room.service';
 import { Card } from './game';
+require('dotenv').config();
 
 export interface Player {
   name: string;
@@ -16,7 +17,7 @@ export interface Player {
   ready: boolean;
 }
 
-@WebSocketGateway({ cors: true })
+@WebSocketGateway({ cors: { origin: process.env.SOCKET_ORIGIN } })
 export class GameGateway {
   constructor(
     private gameService: GameService,
