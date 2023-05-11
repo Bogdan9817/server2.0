@@ -38,6 +38,7 @@ export class GameService {
     const game = this.getGame(socket);
     game.startRound();
     const { playersObj, currentQuestion, currentJudge, players } = game;
+    if (game.over) return server.to(id).emit('game_over', players);
     const updateData = { currentQuestion, currentJudge, players };
     server.to(id).emit('players_update', updateData);
     server.to(id).emit('question_card_update', currentQuestion);
