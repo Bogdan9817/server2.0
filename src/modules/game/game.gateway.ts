@@ -17,7 +17,7 @@ export interface Player {
   ready: boolean;
 }
 
-@WebSocketGateway({ cors: { origin: process.env.SOCKET_ORIGIN } })
+@WebSocketGateway({ cors: true })
 export class GameGateway {
   constructor(
     private gameService: GameService,
