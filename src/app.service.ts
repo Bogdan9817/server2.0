@@ -4,9 +4,10 @@ require('dotenv').config();
 @Injectable()
 export class AppService {
   getHello(): string {
-    console.log(process.env.SOCKET_ORIGIN);
-    console.log(process.env.COOKIE_KEY);
-    console.log(process.env.DATABASE_URL);
-    return 'Hello World!';
+    return `{
+      "SOCKET_ORIGIN":${process.env.SOCKET_ORIGIN}
+      "COOKIE_KEY":${process.env.COOKIE_KEY}
+      "DATABASE_URL":${process.env.DATABASE_URL}
+    }`;
   }
 }
