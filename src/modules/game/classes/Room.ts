@@ -1,4 +1,4 @@
-import { Player } from './game.gateway';
+import Player from './Player';
 
 export type CardsOptions = { [key: string]: boolean };
 export type Session = 'public' | 'private';

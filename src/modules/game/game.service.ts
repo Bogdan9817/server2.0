@@ -5,17 +5,13 @@ import { InjectModel } from '@nestjs/mongoose';
 import { QuestionCard } from 'src/schemas/question-card.schema';
 import { Model } from 'mongoose';
 import { AnswerCard } from 'src/schemas/answer-card.schema';
-import { Card, Game } from './game';
-import { Player } from './game.gateway';
-
-interface Games {
-  [key: string]: Game;
-}
+import { Game } from './classes/Game';
+import { Card } from './classes/Deck';
+import Player from './classes/Player';
 
 @Injectable()
 export class GameService {
-  games: Games = {};
-
+  private games: Map<string, Game> = new Map();
   constructor(
     private roomService: RoomService,
     @InjectModel(QuestionCard.name) private questions: Model<QuestionCard>,
@@ -24,42 +20,36 @@ export class GameService {
 
   async gameInit(socket: Socket, server: Server) {
     const { players, cardOpts, id } = this.getGameRoom(socket);
-    if (!this.isAccessed(socket, players)) return;
-
+    server.to(id).emit('load_trigger', true);
+    if (!this.isAccessed(socket, players)) {
+      return server.to(id).emit('load_trigger', false);
+    }
     const answerCards = await this.answers.find();
     const questionCards = await this.questions.find();
-
-    this.games[id] = new Game(players, answerCards, questionCards);
+    const game = new Game(players, answerCards, questionCards, id);
+    this.games.set(id, game);
+    server.to(id).emit('load_trigger', false);
   }
 
-  roundStart(socket: Socket, server: Server) {
-    const { isStarts, id } = this.getGameRoom(socket);
+  gameStart(socket: Socket, server: Server) {
+    const { isStarts } = this.getGameRoom(socket);
     if (!isStarts) return;
     const game = this.getGame(socket);
-    game.startRound();
-    const { playersObj, currentQuestion, currentJudge, players } = game;
-    if (game.over) return server.to(id).emit('game_over', players);
-    const updateData = { currentQuestion, currentJudge, players };
-    server.to(id).emit('players_update', updateData);
-    server.to(id).emit('question_card_update', currentQuestion);
-    for (let player in playersObj) {
-      server.to(player).emit('answer_cards_update', playersObj[player]);
-    }
+    this.roundStart(server, game);
   }
 
   playerChooseAnswer(socket: Socket, server: Server, card: Card) {
-    const id = this.getId(socket);
     const game = this.getGame(socket);
     game.playerChooseCard(socket.id, card);
     if (game.currentJudgeAnswers.length === game.players.length - 1) {
-      server.to(id).emit('round_answers', game.currentJudgeAnswers);
+      server.to(game.id).emit('round_answers', game.currentJudgeAnswers);
     }
   }
 
   judgeChooseAnswer(socket: Socket, server: Server, authorId: string) {
     const game = this.getGame(socket);
     game.judgeChooseCard(authorId);
-    this.roundStart(socket, server);
+    this.roundStart(server, game);
   }
 
   leaveGame(socket: Socket, server: Server) {
@@ -67,21 +57,34 @@ export class GameService {
     if (!game) return;
     console.log('player leave');
     game.playerLeaveGame(socket.id);
-    this.roundStart(socket, server);
+    if (game.over) return server.to(game.id).emit('game_over', game.players);
+    server.to(game.id).emit('current_judge', game.players[game.judge].name);
+    server.to(game.id).emit('players_update', game.players);
+  }
+
+  private roundStart(server: Server, game: Game) {
+    game.startRound();
+    if (game.over) return server.to(game.id).emit('game_over', game.players);
+    server.to(game.id).emit('question_card_update', game.question);
+    server.to(game.id).emit('current_judge', game.players[game.judge].name);
+    server.to(game.id).emit('players_update', game.players);
+    for (let player in game.playersObj) {
+      server.to(player).emit('answer_cards_update', game.playersObj[player]);
+    }
   }
 
   private getGameRoom(socket: Socket) {
     const id = this.getId(socket);
-    return this.roomService.rooms[id];
+    return this.roomService.rooms.get(id);
   }
 
-  private getId(socket: Socket) {
-    return [...socket.rooms][1];
+  private getId(socket: Socket): string {
+    return this.roomService.playerInRoom.get(socket);
   }
 
-  private getGame(socket: Socket) {
+  private getGame(socket: Socket): Game {
     const gameId = this.getId(socket);
-    return this.games[gameId];
+    return this.games.get(gameId);
   }
 
   private isAccessed(socket: Socket, players: Player[]) {

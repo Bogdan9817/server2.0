@@ -8,14 +8,9 @@ import {
 import { Server, Socket } from 'socket.io';
 import { GameService } from './game.service';
 import { CreateRoomArgs, RoomService } from './room.service';
-import { Card } from './game';
-require('dotenv').config();
+import { Card } from './classes/Deck';
 
-export interface Player {
-  name: string;
-  playerId: string;
-  ready: boolean;
-}
+require('dotenv').config();
 
 @WebSocketGateway({ cors: true })
 export class GameGateway {
@@ -52,12 +47,7 @@ export class GameGateway {
   async handleGameInit(@ConnectedSocket() socket: Socket) {
     await this.gameService.gameInit(socket, this.server);
     this.roomService.closeRoom(socket);
-    this.gameService.roundStart(socket, this.server);
-  }
-
-  @SubscribeMessage('round_start')
-  handleRoundStart(@ConnectedSocket() socket: Socket) {
-    this.gameService.roundStart(socket, this.server);
+    this.gameService.gameStart(socket, this.server);
   }
 
   @SubscribeMessage('player_choose_answer')
@@ -78,7 +68,7 @@ export class GameGateway {
 
   @SubscribeMessage('disconnect')
   handleDisconnect(@ConnectedSocket() socket: Socket) {
-    // this.gameService.leaveGame(socket, this.server);
-    // this.roomService.leaveRoom();
+    this.gameService.leaveGame(socket, this.server);
+    this.roomService.playerLeftRoom(socket);
   }
 }
